@@ -52,8 +52,6 @@ if all(x(:,2)==1)
 end
 
 tr=repmat('-',1,100);
-lu=length(x(x(:,2)==1)); %number of unhealthy subjects
-lh=length(x(x(:,2)==0)); %number of healthy subjects
 z=sortrows(x,1);
 if threshold==0
     labels=unique(z(:,1));%find unique values in z
@@ -61,11 +59,14 @@ else
     K=linspace(0,1,threshold+1); K(1)=[];
     labels=quantile(unique(z(:,1)),K)';
 end
+clear z
+
 labels(end+1)=labels(end)+1;
 ll=length(labels); %count unique value
-a=zeros(ll,2); b=a; c=zeros(ll,1);%array preallocation
+a=zeros(ll,2); c=zeros(ll,1);%array preallocation
 ubar=mean(x(x(:,2)==1),1); %unhealthy mean value
 hbar=mean(x(x(:,2)==0),1); %healthy mean value
+N=length(x);
 for K=1:ll
     if hbar<ubar
         TP=length(x(x(:,2)==1 & x(:,1)>labels(K)));
@@ -80,28 +81,30 @@ for K=1:ll
     end
     M=[TP FP;FN TN];
     a(K,:)=diag(M)'./sum(M); %Sensitivity and Specificity
-    b(K,:)=[a(K,1)/(1-a(K,2)) (1-a(K,1))/a(K,2)]; %Positive and Negative likelihood ratio
-    c(K)=trace(M)/sum(M(:)); %Efficiency
+    c(K)=trace(M)/N; %Efficiency
 end
-b(isnan(b))=Inf;
+clear ll K TP FP FN TN M N
+b=[a(:,1)./(1-a(:,2)) (1-a(:,1))./a(:,2)];
 
 xroc=1-a(:,2); yroc=a(:,1); %ROC points
 if hbar>ubar
     xroc=flipud(xroc); yroc=flipud(yroc); %ROC points
 end
+clear ubar hbar
 
 st=[1 mean(xroc) 1]; L=[0 0 0]; U=[Inf 1 Inf];
 fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-ft_ = fittype('1-1/((1+(x/C)^B)^E)',...
-    'dependent',{'y'},'independent',{'x'},...
-    'coefficients',{'B', 'C', 'E'});
-cfit = fit(xroc,yroc,ft_,fo_);
+ft_ = fittype('1-1/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'B', 'C', 'E'});
+rocfit = fit(xroc,yroc,ft_,fo_);
 
 
 xfit=linspace(0,1,500);
-yfit=feval(cfit,xfit);
+yfit=rocfit(xfit);
+clear st L U fo_ ft_ rocfit
 Area=trapz(xfit,yfit); %estimate the area under the curve
 %standard error of area
+lu=length(x(x(:,2)==1)); %number of unhealthy subjects
+lh=length(x(x(:,2)==0)); %number of healthy subjects
 Area2=Area^2; Q1=Area/(2-Area); Q2=2*Area2/(1+Area);
 V=(Area*(1-Area)+(lu-1)*(Q1-Area2)+(lh-1)*(Q2-Area2))/(lu*lh);
 Serror=realsqrt(V);
@@ -109,10 +112,18 @@ Serror=realsqrt(V);
 ci=Area+[-1 1].*(realsqrt(2)*erfcinv(alpha)*Serror);
 if ci(1)<0; ci(1)=0; end
 if ci(2)>1; ci(2)=1; end
-m=zeros(1,4);
 %z-test
 SAUC=(Area-0.5)/Serror; %standardized area
 p=1-0.5*erfc(-SAUC/realsqrt(2)); %p-value
+clear lu lh Area2 Q1 Q2 V 
+
+if nargout
+    ROCout.AUC=Area; %Area under the curve
+    ROCout.SE=Serror; %standard error of the area
+    ROCout.ci=ci; % 95% Confidence interval
+    ROCout.xr=xroc; %graphic x points
+    ROCout.yr=yroc; %graphic y points
+end
 
 if verbose==1
     %Performance of the classifier
@@ -155,10 +166,11 @@ if verbose==1
     ylabel('True positive rate (Sensitivity)')
     title(sprintf('ROC curve (AUC=%0.4f)',Area))
     axis square
-
+    clear Area Serror ci str SAUC Serror xroc yroc H H1 xfit yfit
     if p<=alpha
-        ButtonName = questdlg('Do you want to input the true prevalence?', 'Prevalence Question', 'Yes', 'No', 'Yes');
-        if strcmp(ButtonName,'Yes')
+        clear p
+        ButtonName = questdlg('Do you want to input the true prevalence?', 'Prevalence Question', 'Yes', 'No', 'No');
+        if strcmp(ButtonName,'Yes')  
             ButtonName = questdlg('Do you want to input the true prevalence as:', 'Prevalence Question', 'Ratio', 'Probability', 'Ratio');
             switch ButtonName
                 case 'Ratio'
@@ -172,92 +184,112 @@ if verbose==1
                     pr=str2double(inputdlg(prompt,name));
                     POD=pr/(1-pr); %prior odds
             end
+            clear ButtonName prompt name Ratio pr
             d=[1./(1+1./(b(:,1).*POD)) 1./(1+(b(:,2).*POD))];
             d((a(:,1)==0 & a(:,2)==1),1)=NaN;
             d((a(:,1)==1 & a(:,2)==0),2)=NaN;
             matrix=[labels'; a(:,1)'; a(:,2)';c';b(:,1)'; b(:,2)';d(:,1)'.*100; d(:,2)'.*100;]';
+            clear POD a b c d labels
             if verbose
                 disp('ROC CURVE DATA')
                 disp(tr)
-                disp(array2table(matrix,'VariableNames',{'Cut_off','Sensitivity','Specificity','Efficiency','PLR','Pos_pred','NLR','Neg_Pred'}))
+                disp(array2table(matrix,'VariableNames',{'Cut_off','Sensitivity','Specificity','Efficiency','PLR','NLR','Pos_pred','Neg_Pred'}))
             end
         else
+            clear ButtonName
             matrix=[labels'; a(:,1)'; a(:,2)';c';b(:,1)'; b(:,2)']';
+            clear a b c d labels
             if verbose
                 disp('ROC CURVE DATA')
                 disp(tr)
                 disp(array2table(matrix,'VariableNames',{'Cut_off','Sensitivity','Specificity','Efficiency','PLR','NLR'}))
             end
         end
-        st=[1 mean(matrix(:,1)) 1]; U=[Inf max(matrix(:,1)) Inf];
+        clear tr
+        
+        CSe=matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1); %Max sensitivity cut-off
+        CSp=matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1); %Max specificity cut-off
+        CEff=matrix(matrix(:,1)==min(matrix(matrix(:,4)==max(matrix(:,4)))),1); %Max efficiency cut-off
+        CPlr=matrix(matrix(:,5)==max(matrix(~isnan(matrix(:,5)) & ~isinf(matrix(:,5)),5)),1); %Max PLR cut-off
+        CNlr=matrix(matrix(:,6)==max(matrix(~isnan(matrix(:,6)),6)),1); %Max NLR cut-off
+        
+        z=min(matrix(:,1));
+        if z<0
+            COEFF=abs(z)+1;
+        else
+            COEFF=0;
+        end
+        clear z
+        
+        M=mean(matrix(:,1))+COEFF; MM=max(matrix(:,1))+COEFF;
+        ft_ = fittype('1-1/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'B', 'C', 'E'});
+        st=[1 M 1]; L=[0 0 0]; U=[Inf MM Inf];
         fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitSe = fit(matrix(:,1),matrix(:,2),ft_,fo_);
-        st=[-1 mean(matrix(:,1)) 1]; L=[-Inf 0 0]; U=[0 max(matrix(:,1)) Inf];
+        fitSe = fit(matrix(:,1)+COEFF,matrix(:,2),ft_,fo_);
+        
+        st=[-1 M 1]; L=[-Inf 0 0]; U=[0 MM Inf];
         fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitSp=fit(matrix(:,1),matrix(:,3),ft_,fo_);
-        st=[min(matrix(:,4)) 1 mean(matrix(:,1)) max(matrix(:,4)) 1]; L=[0 0 0 0 0]; U=[1 Inf max(matrix(:,1)) 1 Inf];
+        fitSp=fit(matrix(:,1)+COEFF,matrix(:,3),ft_,fo_);
+        
         ft_ = fittype('D+(A-D)/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'A', 'B', 'C', 'D', 'E'});
+        st=[min(matrix(:,4)) 1 M max(matrix(:,4)) 1]; L=[0 0 0 0 0]; U=[1 Inf MM 1 Inf];
         fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitEff=fit(matrix(:,1),matrix(:,4),ft_,fo_);
-        
-        CSe=matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))); %Max sensitivity cut-off
-        CSp=matrix(:,1)==min(matrix(matrix(:,3)==max(matrix(:,3)))); %Max specificity cut-off
-        CEff=matrix(:,1)==min(matrix(matrix(:,4)==max(matrix(:,4)))); %Max efficiency cut-off
-        
-        d=realsqrt(xfit.^2+(yfit'-1).^2);%apply the Pitagora's theorem
-        p=coeffvalues(fitSp);
-        CE=(((1/(xfit(d==min(d))))^(1/p(3))-1)^(1/p(1)))*p(2);
+        fitEff=fit(matrix(:,1)+COEFF,matrix(:,4),ft_,fo_);
+
         myfun=@(x,se,sp) (-1./(1+(x./se(2)).^se(1)).^se(3))+(1./(1+(x./sp(2)).^sp(1)).^sp(3));
-        SeSp=fzero(@(x) myfun(x,coeffvalues(fitSe),coeffvalues(fitSp)),CE);
+        SeSp=fzero(@(x) myfun(x,coeffvalues(fitSe),coeffvalues(fitSp)),M);
         
-        xg=linspace(0,max(matrix(:,1)),500);
+        clear M MM ft_ st fo_ myfun L U st
+
+        xg=linspace(0,max(matrix(:,1))+COEFF,500);
         H2=figure;
         set(H2,'Position',[570 402 868 420])
         hold on
-        HSE = plot(xg,feval(fitSe,xg),'marker','none','linestyle','-','color','r','linewidth',2);
-        HCSe=plot([matrix(CSe,1) matrix(CSe,1)],[0 1],'marker','none','linestyle','--','color','r','linewidth',2);
-        HSP = plot(xg,feval(fitSp,xg),'marker','none','linestyle','-','color','g','linewidth',2);
-        HCSp=plot([matrix(CSp,1) matrix(CSp,1)],[0 1],'marker','none','linestyle','--','color','g','linewidth',2);
-        HEFF = plot(xg,feval(fitEff,xg),'marker','none','linestyle','-','color','b','linewidth',2);
-        HCEff=plot([matrix(CEff,1) matrix(CEff,1)],[0 1],'marker','none','linestyle','--','color','b','linewidth',2);
-        HCO=plot([CE CE],[0 1],'marker','none','linestyle','--','color','m','linewidth',2);
-        HCSeSp=plot([SeSp SeSp],[0 1],'marker','none','linestyle','--','color','k','linewidth',2);
+        H=ones(1,9);
+        c=[0 0 1;1 0 0; 0 1 0; 0 0 0.1724; 1 0.1034 0.7241; 1 0.8276 0];
+        H(1) = plot(xg,feval(fitSe,xg),'marker','none','linestyle','-','color',c(2,:),'linewidth',2);
+        H(2)=plot([CSe CSe]+COEFF,[0 1],'marker','none','linestyle','--','color',c(2,:),'linewidth',2);
+        H(3) = plot(xg,feval(fitSp,xg),'marker','none','linestyle','-','color',c(3,:),'linewidth',2);
+        H(4)=plot([CSp CSp]+COEFF,[0 1],'marker','none','linestyle','--','color',c(3,:),'linewidth',2);
+        H(5) = plot(xg,feval(fitEff,xg),'marker','none','linestyle','-','color',c(1,:),'linewidth',2);
+        H(6)=plot([CEff CEff]+COEFF,[0 1],'marker','none','linestyle','--','color',c(1,:),'linewidth',2);
+        H(7)=plot([SeSp SeSp],[0 1],'marker','none','linestyle','--','color',c(6,:),'linewidth',2);
+        H(8)=plot([CPlr CPlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(5,:),'linewidth',2);
+        H(9)=plot([CNlr CNlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(4,:),'linewidth',2);
         hold off
-        legend([HSE HCSe HSP HCSp HCO HEFF HCEff HCSeSp],...
-            'Sensitivity',sprintf('Max Sensitivity cutoff: %0.4f',matrix(CSe,1)),...
-            'Specificity',sprintf('Max Specificity cutoff: %0.4f',matrix(CSp,1)),...
-            sprintf('Cost effective cutoff: %0.4f',CE),...
-            'Efficiency',sprintf('Max Efficiency cutoff: %0.4f',matrix(CEff,1)),...
-            sprintf('Sensitivity=Specificity: %0.4f',SeSp),...
+        legend(H,...
+            'Sensitivity',sprintf('Max Sensitivity cutoff: %0.4f',CSe),...
+            'Specificity',sprintf('Max Specificity cutoff: %0.4f',CSp),...
+            'Efficiency',sprintf('Max Efficiency cutoff: %0.4f',CEff),...
+            sprintf('Cost Effective cutoff: %0.4f',SeSp-COEFF),...
+            sprintf('Max PLR: %0.4f',CPlr),sprintf('Max NLR: %0.4f',CNlr),...
             'Location','BestOutside')
         axis([xg(1) xg(end) 0 1.1])
+        if COEFF~=0
+            xt=get(gca,'XTick'); Lxt=length(xt);
+            xtl=cell(1,Lxt);
+            for I=1:Lxt
+                xtl{I}=sprintf('%0.2f',xt(I)-COEFF);
+            end
+            set(gca,'XTick',xt,'XTickLabel',xtl)
+            clear xt xtl I Lxt
+        end
         
-        fprintf('1) Max Sensitivity Cut-off point= %0.2f\n',matrix(CSe,1))
-        fprintf('2) Max Specificity Cut-off point= %0.2f\n',matrix(CSp,1))
-        fprintf('3) Cost effective Cut-off point= %0.2f\n',CE),
-        fprintf('4) Max Efficiency Cut-off point= %0.2f\n',matrix(CEff,1))
-        fprintf('5) Sensitivity=Specificity Cut-off point= %0.2f\n',SeSp),
-        m=[matrix(CSe,1) matrix(CSp,1) CE matrix(CEff,1) SeSp];
+        fprintf('1) Max Sensitivity Cut-off point= %0.4f\n',CSe)
+        fprintf('2) Max Specificity Cut-off point= %0.4f\n',CSp)
+        fprintf('3) Cost effective Cut-off point (Sensitivity=Specificity)= %0.4f\n',SeSp-COEFF),
+        fprintf('4) Max Efficiency Cut-off point= %0.4f\n',CEff)
+        fprintf('5) Max PLR Cut-off point= %0.4f\n',CPlr)
+        fprintf('6) Max PLR Cut-off point= %0.4f\n',CNlr)
+        m=[CSe CSp SeSp CEff CPlr CNlr];
         
     else
+        m=NaN;
         matrix=NaN;
     end
     
     if nargout
-        ROCout.AUC=Area; %Area under the curve
-        ROCout.SE=Serror; %standard error of the area
-        ROCout.ci=ci; % 95% Confidence interval
         ROCout.co=m; % cut off points
-        ROCout.xr=xroc; %graphic x points
-        ROCout.yr=yroc; %graphic y points
         ROCout.table=matrix;
-    end
-else
-    if nargout
-        ROCout.AUC=Area; %Area under the curve
-        ROCout.SE=Serror; %standard error of the area
-        ROCout.ci=ci; % 95% Confidence interval
-        ROCout.xr=xroc; %graphic x points
-        ROCout.yr=yroc; %graphic y points
     end
 end
