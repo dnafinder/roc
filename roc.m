@@ -43,7 +43,7 @@ addOptional(p,'verbose',1, @(x) isnumeric(x) && isreal(x) && isfinite(x) && issc
 parse(p,x,varargin{:});
 threshold=p.Results.threshold; alpha=p.Results.alpha; verbose=p.Results.verbose;
 clear p
-x(:,2)=logical(x(:,2));
+assert(all(x(:,2)==0 | x(:,2)==1),'Warning: all x(:,2) values must be 0 or 1')
 if all(x(:,2)==0)
     error('Warning: there are only healthy subjects!')
 end
@@ -100,7 +100,7 @@ rocfit = fit(xroc,yroc,ft_,fo_);
 
 xfit=linspace(0,1,500);
 yfit=rocfit(xfit);
-clear st L U fo_ ft_ rocfit
+clear st L U fo_ ft_ 
 Area=trapz(xfit,yfit); %estimate the area under the curve
 %standard error of area
 lu=length(x(x(:,2)==1)); %number of unhealthy subjects
@@ -115,7 +115,6 @@ if ci(2)>1; ci(2)=1; end
 %z-test
 SAUC=(Area-0.5)/Serror; %standardized area
 p=1-0.5*erfc(-SAUC/realsqrt(2)); %p-value
-clear lu lh Area2 Q1 Q2 V 
 
 if nargout
     ROCout.AUC=Area; %Area under the curve
@@ -123,7 +122,10 @@ if nargout
     ROCout.ci=ci; % 95% Confidence interval
     ROCout.xr=xroc; %graphic x points
     ROCout.yr=yroc; %graphic y points
+    ROCout.rocfit=rocfit;
 end
+
+clear lu lh Area2 Q1 Q2 V rocfit
 
 if verbose==1
     %Performance of the classifier
