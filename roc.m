@@ -158,8 +158,12 @@ if verbose==1
     %display graph
     H=figure;
     set(H,'Position',[4 402 560 420])
-    hold on
-    plot([0 1],[0 1],'k');
+    axis square; hold on
+    plot(xfit,yfit,'marker','none','linestyle','-','color','k','linewidth',2);
+    patch(xfit,yfit,'g','FaceAlpha',0.5)
+    patch([0 1 1],[0 0 1],'r','FaceAlpha',0.5)
+    set(gca,'Xtick',0:0.1:1)
+    grid on
     plot(xfit,yfit,'marker','none','linestyle','-','color','r','linewidth',2);
     H1=plot(xroc,yroc,'bo');
     set(H1,'markersize',6,'markeredgecolor','b','markerfacecolor','b')
@@ -167,7 +171,7 @@ if verbose==1
     xlabel('False positive rate (1-Specificity)')
     ylabel('True positive rate (Sensitivity)')
     title(sprintf('ROC curve (AUC=%0.4f)',Area))
-    axis square
+
     clear Area Serror ci str SAUC Serror xroc yroc H H1 xfit yfit
     if p<=alpha
         clear p
@@ -258,6 +262,8 @@ if verbose==1
         H(7)=plot([SeSp SeSp],[0 1],'marker','none','linestyle','--','color',c(6,:),'linewidth',2);
         H(8)=plot([CPlr CPlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(5,:),'linewidth',2);
         H(9)=plot([CNlr CNlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(4,:),'linewidth',2);
+        xlabel('Test cut-off')
+        ylabel('Percent')
         hold off
         legend(H,...
             'Sensitivity',sprintf('Max Sensitivity cutoff: %0.4f',CSe),...
