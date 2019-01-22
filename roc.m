@@ -288,7 +288,7 @@ if verbose==1
         fprintf('3) Cost effective Cut-off point (Sensitivity=Specificity)= %0.4f\n',SeSp-COEFF),
         fprintf('4) Max Efficiency Cut-off point= %0.4f\n',CEff)
         fprintf('5) Max PLR Cut-off point= %0.4f\n',CPlr)
-        fprintf('6) Max PLR Cut-off point= %0.4f\n',CNlr)
+        fprintf('6) Max NLR Cut-off point= %0.4f\n',CNlr)
         m=[CSe CSp SeSp CEff CPlr CNlr];
         
     else
