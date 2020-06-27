@@ -95,14 +95,18 @@ if ~isequal([xroc(end) yroc(end)],[1 1])
     xroc(end+1)=1; yroc(end+1)=1;
 end
 
-st=[1 mean(xroc) 1]; L=[0 0 0]; U=[Inf 1 Inf];
-fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-ft_ = fittype('1-1/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'B', 'C', 'E'});
-rocfit = fit(xroc,yroc,ft_,fo_);
+ft = fittype( '1-1/((1+(x/C)^B)^E)', 'independent', 'x', 'dependent', 'y' );
+opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+opts.Display = 'Off';
+opts.Lower = [0 0 0];
+opts.Robust = 'Bisquare';
+opts.StartPoint = [1 0.5 1];
+opts.Upper = [Inf 1 Inf];
+rocfit = fit(xroc,yroc,ft,opts);
 
 xfit=linspace(0,1,500);
 yfit=rocfit(xfit);
-clear st L U fo_ ft_ 
+clear ft opt
 Area=trapz(xfit,yfit); %estimate the area under the curve
 %standard error of area
 lu=length(x(x(:,2)==1)); %number of unhealthy subjects
