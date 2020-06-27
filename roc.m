@@ -241,13 +241,23 @@ if verbose==1
         ft = fittype( '1-1/((1+(x/C)^B)^E)', 'independent', 'x', 'dependent', 'y' );
         opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
         opts.Display = 'Off';
-        opts.Lower = [-Inf mM 0];
         opts.StartPoint = [0 M 0];
-        opts.Upper = [0 MM Inf];
+        if matrix(1,2)>matrix(end,2)
+            opts.Lower = [-Inf mM 0];
+            opts.Upper = [0 MM Inf];
+        else
+            opts.Lower = [0 mM 0];
+            opts.Upper = [Inf MM Inf];
+        end
         fitSe = fit(matrix(:,1)+COEFF,matrix(:,2), ft, opts );
-            
-        opts.Lower = [0 mM 0];
-        opts.Upper = [Inf MM Inf];
+        
+        if matrix(1,3)>matrix(end,3)
+            opts.Lower = [-Inf mM 0];
+            opts.Upper = [0 MM Inf];
+        else
+            opts.Lower = [0 mM 0];
+            opts.Upper = [Inf MM Inf];
+        end
         fitSp = fit(matrix(:,1)+COEFF,matrix(:,3), ft, opts );
         
         ft = fittype('D+(A-D)/((1+(x/C)^B)^E)', 'independent', 'x', 'dependent', 'y' );
