@@ -223,8 +223,16 @@ if verbose==1
         end
         clear tr
         
-        CSe=mean(matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1)); %Max sensitivity cut-off
-        CSp=mean(matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1)); %Max specificity cut-off
+        if matrix(1,2)>matrix(end,2) %Max sensitivity cut-off
+            CSe=mean(matrix(matrix(:,1)==max(matrix(matrix(:,2)==max(matrix(:,2)))),1)); 
+        else
+            CSe=mean(matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1)); 
+        end
+        if matrix(1,3)>matrix(end,3) %Max specificity cut-off
+            CSp=mean(matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1)); 
+        else
+            CSp=mean(matrix(matrix(:,1)==min(matrix(matrix(:,3)==max(matrix(:,3)))),1)); 
+        end
         CEff=mean(matrix(matrix(:,1)==min(matrix(matrix(:,4)==max(matrix(:,4)))),1)); %Max efficiency cut-off
         CPlr=mean(matrix(matrix(:,5)==max(matrix(~isnan(matrix(:,5)) & ~isinf(matrix(:,5)),5)),1)); %Max PLR cut-off
         CNlr=mean(matrix(matrix(:,6)==max(matrix(~isnan(matrix(:,6)),6)),1)); %Max NLR cut-off
@@ -250,7 +258,6 @@ if verbose==1
             opts.Upper = [Inf MM Inf];
         end
         fitSe = fit(matrix(:,1)+COEFF,matrix(:,2), ft, opts );
-        
         if matrix(1,3)>matrix(end,3)
             opts.Lower = [-Inf mM 0];
             opts.Upper = [0 MM Inf];
