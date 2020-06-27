@@ -91,12 +91,14 @@ if hbar>ubar
     xroc=flipud(xroc); yroc=flipud(yroc); %ROC points
 end
 clear ubar hbar
+if ~isequal([xroc(end) yroc(end)],[1 1])
+    xroc(end+1)=1; yroc(end+1)=1;
+end
 
 st=[1 mean(xroc) 1]; L=[0 0 0]; U=[Inf 1 Inf];
 fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
 ft_ = fittype('1-1/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'B', 'C', 'E'});
 rocfit = fit(xroc,yroc,ft_,fo_);
-
 
 xfit=linspace(0,1,500);
 yfit=rocfit(xfit);
@@ -213,11 +215,11 @@ if verbose==1
         end
         clear tr
         
-        CSe=matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1); %Max sensitivity cut-off
-        CSp=matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1); %Max specificity cut-off
-        CEff=matrix(matrix(:,1)==min(matrix(matrix(:,4)==max(matrix(:,4)))),1); %Max efficiency cut-off
-        CPlr=matrix(matrix(:,5)==max(matrix(~isnan(matrix(:,5)) & ~isinf(matrix(:,5)),5)),1); %Max PLR cut-off
-        CNlr=matrix(matrix(:,6)==max(matrix(~isnan(matrix(:,6)),6)),1); %Max NLR cut-off
+        CSe=mean(matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1)); %Max sensitivity cut-off
+        CSp=mean(matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1)); %Max specificity cut-off
+        CEff=mean(matrix(matrix(:,1)==min(matrix(matrix(:,4)==max(matrix(:,4)))),1)); %Max efficiency cut-off
+        CPlr=mean(matrix(matrix(:,5)==max(matrix(~isnan(matrix(:,5)) & ~isinf(matrix(:,5)),5)),1)); %Max PLR cut-off
+        CNlr=mean(matrix(matrix(:,6)==max(matrix(~isnan(matrix(:,6)),6)),1)); %Max NLR cut-off
         
         z=min(matrix(:,1));
         if z<0
@@ -227,25 +229,29 @@ if verbose==1
         end
         clear z
         
-        M=mean(matrix(:,1))+COEFF; MM=max(matrix(:,1))+COEFF;
-        ft_ = fittype('1-1/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'B', 'C', 'E'});
-        st=[1 M 1]; L=[0 0 0]; U=[Inf MM Inf];
-        fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitSe = fit(matrix(:,1)+COEFF,matrix(:,2),ft_,fo_);
+        mM=min(matrix(:,1))+COEFF; M=mean(matrix(:,1))+COEFF; MM=max(matrix(:,1))+COEFF;
+        ft = fittype( '1-1/((1+(x/C)^B)^E)', 'independent', 'x', 'dependent', 'y' );
+        opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+        opts.Display = 'Off';
+        opts.Lower = [-Inf mM 0];
+        opts.StartPoint = [0 M 0];
+        opts.Upper = [0 MM Inf];
+        fitSe = fit(matrix(:,1)+COEFF,matrix(:,2), ft, opts );
+            
+        opts.Lower = [0 mM 0];
+        opts.Upper = [Inf MM Inf];
+        fitSp = fit(matrix(:,1)+COEFF,matrix(:,3), ft, opts );
         
-        st=[-1 M 1]; L=[-Inf 0 0]; U=[0 MM Inf];
-        fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitSp=fit(matrix(:,1)+COEFF,matrix(:,3),ft_,fo_);
-        
-        ft_ = fittype('D+(A-D)/((1+(x/C)^B)^E)','dependent',{'y'},'independent',{'x'},'coefficients',{'A', 'B', 'C', 'D', 'E'});
-        st=[min(matrix(:,4)) 1 M max(matrix(:,4)) 1]; L=[0 0 0 0 0]; U=[1 Inf MM 1 Inf];
-        fo_ = fitoptions('method','NonlinearLeastSquares','Lower',L,'Upper',U,'Startpoint',st);
-        fitEff=fit(matrix(:,1)+COEFF,matrix(:,4),ft_,fo_);
+        ft = fittype('D+(A-D)/((1+(x/C)^B)^E)', 'independent', 'x', 'dependent', 'y' );
+        opts.Lower = zeros(1,5);
+        opts.StartPoint = [min(matrix(:,4)) 1 M max(matrix(:,4)) 1];
+        opts.Upper = [1 Inf MM 1 Inf];
+        fitEff = fit(matrix(:,1)+COEFF,matrix(:,4), ft, opts );
 
         myfun=@(x,se,sp) (-1./(1+(x./se(2)).^se(1)).^se(3))+(1./(1+(x./sp(2)).^sp(1)).^sp(3));
         SeSp=fzero(@(x) myfun(x,coeffvalues(fitSe),coeffvalues(fitSp)),M);
         
-        clear M MM ft_ st fo_ myfun L U st
+        clear mM M MM ft opts myfun
 
         xg=linspace(0,max(matrix(:,1))+COEFF,500);
         H2=figure;
