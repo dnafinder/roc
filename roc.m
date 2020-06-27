@@ -61,7 +61,6 @@ else
 end
 clear z
 
-labels(end+1)=labels(end)+1;
 ll=length(labels); %count unique value
 a=zeros(ll,2); c=zeros(ll,1);%array preallocation
 ubar=mean(x(x(:,2)==1),1); %unhealthy mean value
@@ -103,6 +102,8 @@ opts.Robust = 'Bisquare';
 opts.StartPoint = [1 0.5 1];
 opts.Upper = [Inf 1 Inf];
 rocfit = fit(xroc,yroc,ft,opts);
+myfun=@(x,rf) -((rf(2)./x)^(-rf(1)) + 1)^(-rf(3)) - x + 1 ;
+cross=fzero(@(x) myfun(x,coeffvalues(rocfit)),1);
 
 xfit=linspace(0,1,500);
 yfit=rocfit(xfit);
@@ -131,7 +132,7 @@ if nargout
     ROCout.rocfit=rocfit;
 end
 
-clear lu lh Area2 Q1 Q2 V rocfit
+clear lu lh Area2 Q1 Q2 V
 
 if verbose==1
     %Performance of the classifier
@@ -166,6 +167,9 @@ if verbose==1
     set(H,'Position',[4 402 560 420])
     axis square; hold on
     plot(xfit,yfit,'marker','none','linestyle','-','color','k','linewidth',2);
+    xfit=linspace(0,cross,500);
+    yfit=rocfit(xfit);
+    clear rocfit
     patch(xfit,yfit,'g','FaceAlpha',0.5)
     patch([0 1 1],[0 0 1],'r','FaceAlpha',0.5)
     set(gca,'Xtick',0:0.1:1)
