@@ -68,18 +68,6 @@ if strcmp(ButtonName,'Yes')
     end
     clear ButtonName prompt name Ratio pr
 end
-if exist('POD','var')
-    methods={'Accuracy','Balanced Accuracy','F1-measure','G-Measure','Matthews Index'};
-else
-    methods={'Accuracy','Balanced Accuracy'};
-end
-type=[];
-while isempty(type)
-    type=listdlg('PromptString','Select the Efficency method calculation:','ListSize',[300 150],...
-    'Name','Disposable methods', 'SelectionMode','single',...
-    'ListString',methods);
-end
-clear methods
 
 tr=repmat('-',1,100);
 z=sortrows(x,1);
@@ -94,7 +82,7 @@ clear z
 
 ll=length(labels); %count unique value
 a=zeros(ll,2); c=zeros(ll,1) ;%array preallocation
-if type>2
+if exist('POD','var')
     d=zeros(ll,2);
 end
 ubar=mean(x(x(:,2)==1),1); %unhealthy mean value
@@ -114,37 +102,24 @@ for K=1:ll
     end
     M=[TP FP;FN TN];
     a(K,:)=diag(M)'./sum(M); %Sensitivity and Specificity
-    if type>2
-        PLR=a(K,1)/(1-a(K,2)); 
-        PPV=1/(1+1/(PLR*POD));
+    if exist('POD','var')
+        PLR=a(K,1)/(1-a(K,2));
         NLR=(1-a(K,1))/(a(K,2));
-        PPN=1/(1+NLR*POD);
-        d(K,:)=[PPV PPN];
-    end
-    switch type
-        case 1
-            c(K)=trace(M)/N; %accuracy
-        case 2
-            c(K)=mean(a(K,:));%Balanced accuracy
-        case 3
-            if all([a(K,1) PPV])
-                c(K)=harmmean([a(K,1) PPV]);%F1-Measure
-            else
-                c(K)=NaN;
-            end
-        case 4
-            if all([a(K,1) PPV]) && all([a(K,1) PPV]>0)
-                c(K)=geomean([a(K,1) PPV]);%G-Measure
-            else
-                c(K)=NaN;
-            end
-        case 5
+        if ~isinf(PLR)
+            PPV=1/(1+1/(PLR*POD));
+            PPN=1/(1+NLR*POD);
+            d(K,:)=[PPV PPN];
             J=sum(a(K,:))-1; PSI=PPV+PPN-1;
             if all([J PSI]) && all([J PSI]>0)
-                c(K)=geomean([J PSI]);%Matthews
+                c(K)=mean([1 geomean([J PSI])]);%Matthews
             else
                 c(K)=NaN;
             end
+        else
+            c(K)=NaN;
+        end
+    else
+        c(K)=mean([1 det(M)/sqrt(prod(sum(M,1))*prod(sum(M,2)))]); %Matthews
     end
 end
 clear ll K TP FP FN TN M N type PLR PPV NLR PPN type
@@ -270,10 +245,10 @@ if verbose==1
         ROCout.matrix=matrix;
         if length(matrix(:,1))>2
             if hbar<ubar 
-                CSe=mean(matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1));%Max sensitivity cut-off
+                CSe=mean(matrix(matrix(:,1)==max(matrix(matrix(:,2)==max(matrix(:,2)))),1));%Max sensitivity cut-off
                 CSp=mean(matrix(matrix(:,1)==min(matrix(matrix(:,3)==max(matrix(:,3)))),1));%Max specificity cut-off
             else
-                CSe=mean(matrix(matrix(:,1)==max(matrix(matrix(:,2)==max(matrix(:,2)))),1));%Max sensitivity cut-off
+                CSe=mean(matrix(matrix(:,1)==min(matrix(matrix(:,2)==max(matrix(:,2)))),1));%Max sensitivity cut-off
                 CSp=mean(matrix(matrix(:,1)==max(matrix(matrix(:,3)==max(matrix(:,3)))),1));%Max specificity cut-off
             end
             CEff=mean(min(matrix(matrix(:,4)==max(matrix(isfinite(matrix(:,4)),4)),1))); %Max efficiency cut-off
