@@ -13,8 +13,8 @@ function ROCout=roc(x,varargin)
 %            then set this variable to 0 or leave it empty;
 %            else set how many unique values you want to use (min=3);
 %        alpha - significance level (default 0.05)
-%        verbose - if you want to see all reports and plots (0-no; 1-yes by
-%        default);
+%        verbose - if you want to see all reports (0-no; 1-yes by default);
+%        plotting - if you want to see all plots (0-no; 1-yes by default);
 %
 % Output: if verbose = 1
 %         the ROCplots, the sensitivity and specificity at thresholds; the Area
@@ -24,11 +24,12 @@ function ROCout=roc(x,varargin)
 %         ROCout.AUC=Area under the curve (AUC);
 %         ROCout.SE=Standard error of the area;
 %         ROCout.ci=Confidence interval of the AUC
+%         ROCout.p=p-value of AUC>0.5;
 %         ROCout.co=Cut off points
 %         ROCdata.xr and ROCdata.yr points for ROC plot
 %
 %           Created by Giuseppe Cardillo
-%           giuseppe.cardillo-edta@poste.it
+%           giuseppe.cardillo.75@gmail.com
 %
 % To cite this file, this would be an appropriate format:
 % Cardillo G. (2008) ROC curve: compute a Receiver Operating Characteristics curve.
@@ -40,9 +41,12 @@ addRequired(p,'x',@(x) validateattributes(x,{'numeric'},{'2d','real','finite','n
 addOptional(p,'threshold',0, @(x) isnumeric(x) && isreal(x) && isfinite(x) && isscalar(x) && (x==0 || x>2));
 addOptional(p,'alpha',0.05, @(x) validateattributes(x,{'numeric'},{'scalar','real','finite','nonnan','>',0,'<',1}));
 addOptional(p,'verbose',1, @(x) isnumeric(x) && isreal(x) && isfinite(x) && isscalar(x) && (x==0 || x==1));
+addOptional(p,'plotting',1, @(x) isnumeric(x) && isreal(x) && isfinite(x) && isscalar(x) && (x==0 || x==1));
 parse(p,x,varargin{:});
-threshold=p.Results.threshold; alpha=p.Results.alpha; verbose=p.Results.verbose;
+threshold=p.Results.threshold; alpha=p.Results.alpha; 
+verbose=p.Results.verbose; plotting=p.Results.plotting;
 clear p
+
 assert(all(x(:,2)==0 | x(:,2)==1),'Warning: all x(:,2) values must be 0 or 1')
 if all(x(:,2)==0)
     error('Warning: there are only healthy subjects!')
@@ -85,8 +89,8 @@ a=zeros(ll,2); c=zeros(ll,1) ;%array preallocation
 if exist('POD','var')
     d=zeros(ll,2);
 end
-ubar=mean(x(x(:,2)==1),1); %unhealthy mean value
-hbar=mean(x(x(:,2)==0),1); %healthy mean value
+ubar=median(x(x(:,2)==1),1); %unhealthy median value
+hbar=median(x(x(:,2)==0),1); %healthy median value
 N=length(x);
 for K=1:ll
     if hbar<ubar
@@ -168,6 +172,7 @@ if nargout
     ROCout.AUC=Area; %Area under the curve
     ROCout.SE=Serror; %standard error of the area
     ROCout.ci=ci; % 95% Confidence interval
+    ROCout.p=p; %pvalue
     ROCout.xr=xroc; %graphic x points
     ROCout.yr=yroc; %graphic y points
 end
@@ -203,20 +208,22 @@ if verbose==1
     end
     disp(' ')
     
-    %display graph
-    H=figure;
-    set(H,'Position',[4 402 560 420])
-    axis square; hold on
-    sh=stairs(xroc,yroc,'color','b','linewidth',2);
-    fill([sh.XData(1),repelem(sh.XData(2:end),2)],[repelem(sh.YData(1:end-1),2),sh.YData(end)],'g','FaceAlpha',0.5)
-    clear sh
-    patch([0 1 1],[0 0 1],'r','FaceAlpha',0.5)
-    set(gca,'Xtick',0:0.1:1)
-    grid on
-    hold off
-    xlabel('False positive rate (1-Specificity)')
-    ylabel('True positive rate (Sensitivity)')
-    title(sprintf('ROC curve (AUC=%0.4f)',Area))
+    if plotting==1
+        %display graph
+        H=figure;
+        set(H,'Position',[4 402 560 420])
+        axis square; hold on
+        sh=stairs(xroc,yroc,'color','b','linewidth',2);
+        fill([sh.XData(1),repelem(sh.XData(2:end),2)],[repelem(sh.YData(1:end-1),2),sh.YData(end)],'g','FaceAlpha',0.5)
+        clear sh
+        patch([0 1 1],[0 0 1],'r','FaceAlpha',0.5)
+        set(gca,'Xtick',0:0.1:1)
+        grid on
+        hold off
+        xlabel('False positive rate (1-Specificity)')
+        ylabel('True positive rate (Sensitivity)')
+        title(sprintf('ROC curve (AUC=%0.4f)',Area))
+    end
     
     clear Area Serror ci str SAUC Serror xroc yroc H 
     
@@ -295,49 +302,54 @@ if verbose==1
             
             clear mM M MM ft opts myfun
             
-            xg=linspace(0,max(matrix(:,1))+COEFF,500);
-            H2=figure;
-            set(H2,'Position',[570 402 868 420])
-            hold on
-            H=ones(1,9);
-            c=[0 0 1;1 0 0; 0 1 0; 0 0 0.1724; 1 0.1034 0.7241; 1 0.8276 0];
-            H(1) = plot(xg,feval(fitSe,xg),'marker','none','linestyle','-','color',c(2,:),'linewidth',2);
-            H(2)=plot([CSe CSe]+COEFF,[0 1],'marker','none','linestyle','--','color',c(2,:),'linewidth',2);
-            H(3) = plot(xg,feval(fitSp,xg),'marker','none','linestyle','-','color',c(3,:),'linewidth',2);
-            H(4)=plot([CSp CSp]+COEFF,[0 1],'marker','none','linestyle','--','color',c(3,:),'linewidth',2);
-            H(5) = plot(xg,feval(fitEff,xg),'marker','none','linestyle','-','color',c(1,:),'linewidth',2);
-            H(6)=plot([CEff CEff]+COEFF,[0 1],'marker','none','linestyle','--','color',c(1,:),'linewidth',2);
-            H(7)=plot([SeSp SeSp],[0 1],'marker','none','linestyle','--','color',c(6,:),'linewidth',2);
-            H(8)=plot([CPlr CPlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(5,:),'linewidth',2);
-            H(9)=plot([CNlr CNlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(4,:),'linewidth',2);
-            xlabel('Test cut-off')
-            ylabel('Percent')
-            hold off
-            legend(H,...
-                'Sensitivity',sprintf('Max Sensitivity cutoff: %0.4f',CSe),...
-                'Specificity',sprintf('Max Specificity cutoff: %0.4f',CSp),...
-                'Efficiency',sprintf('Max Efficiency cutoff: %0.4f',CEff),...
-                sprintf('Cost Effective cutoff: %0.4f',SeSp-COEFF),...
-                sprintf('Max PLR: %0.4f',CPlr),sprintf('Min NLR: %0.4f',CNlr),...
-                'Location','BestOutside')
-            axis([xg(1) xg(end) 0 1.1])
-            if COEFF~=0
-                xt=get(gca,'XTick'); Lxt=length(xt);
-                xtl=cell(1,Lxt);
-                for I=1:Lxt
-                    xtl{I}=sprintf('%0.2f',xt(I)-COEFF);
+            if plotting==1           
+                xg=linspace(0,max(matrix(:,1))+COEFF,500);
+                H2=figure;
+                set(H2,'Position',[570 402 868 420])
+                hold on
+                H=ones(1,9);
+                c=[0 0 1;1 0 0; 0 1 0; 0 0 0.1724; 1 0.1034 0.7241; 1 0.8276 0];
+                H(1) = plot(xg,feval(fitSe,xg),'marker','none','linestyle','-','color',c(2,:),'linewidth',2);
+                H(2)=plot([CSe CSe]+COEFF,[0 1],'marker','none','linestyle','--','color',c(2,:),'linewidth',2);
+                H(3) = plot(xg,feval(fitSp,xg),'marker','none','linestyle','-','color',c(3,:),'linewidth',2);
+                H(4)=plot([CSp CSp]+COEFF,[0 1],'marker','none','linestyle','--','color',c(3,:),'linewidth',2);
+                H(5) = plot(xg,feval(fitEff,xg),'marker','none','linestyle','-','color',c(1,:),'linewidth',2);
+                H(6)=plot([CEff CEff]+COEFF,[0 1],'marker','none','linestyle','--','color',c(1,:),'linewidth',2);
+                H(7)=plot([SeSp SeSp],[0 1],'marker','none','linestyle','--','color',c(6,:),'linewidth',2);
+                H(8)=plot([CPlr CPlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(5,:),'linewidth',2);
+                H(9)=plot([CNlr CNlr]+COEFF,[0 1],'marker','none','linestyle','--','color',c(4,:),'linewidth',2);
+                xlabel('Test cut-off')
+                ylabel('Percent')
+                hold off
+                legend(H,...
+                    'Sensitivity',sprintf('Max Sensitivity cutoff: %0.4f',CSe),...
+                    'Specificity',sprintf('Max Specificity cutoff: %0.4f',CSp),...
+                    'Efficiency',sprintf('Max Efficiency cutoff: %0.4f',CEff),...
+                    sprintf('Cost Effective cutoff: %0.4f',SeSp-COEFF),...
+                    sprintf('Max PLR: %0.4f',CPlr),sprintf('Min NLR: %0.4f',CNlr),...
+                    'Location','BestOutside')
+                axis([xg(1) xg(end) 0 1.1])
+                if COEFF~=0
+                    xt=get(gca,'XTick'); Lxt=length(xt);
+                    xtl=cell(1,Lxt);
+                    for I=1:Lxt
+                        xtl{I}=sprintf('%0.2f',xt(I)-COEFF);
+                    end
+                    set(gca,'XTick',xt,'XTickLabel',xtl)
+                    clear xt xtl I Lxt
                 end
-                set(gca,'XTick',xt,'XTickLabel',xtl)
-                clear xt xtl I Lxt
             end
             
+            z=fitSe(SeSp-COEFF);
             fprintf('1) Max Sensitivity Cut-off point= %0.4f\n',CSe)
             fprintf('2) Max Specificity Cut-off point= %0.4f\n',CSp)
-            fprintf('3) Cost effective Cut-off point (Sensitivity=Specificity=%0.4f)= %0.4f\n',fitSe(SeSp-COEFF),SeSp-COEFF)
+            fprintf('3) Cost effective Cut-off point (Sensitivity=Specificity=%0.4f)= %0.4f\n',z,SeSp-COEFF)
             fprintf('4) Max Efficiency Cut-off point= %0.4f\n',CEff)
             fprintf('5) Max PLR Cut-off point= %0.4f\n',CPlr)
             fprintf('6) Min NLR Cut-off point= %0.4f\n',CNlr)
-            m=[CSe CSp SeSp CEff CPlr CNlr];
+            m=[CSe matrix(matrix(:,1)==CSe,2:3); CSp matrix(matrix(:,1)==CSp,2:3);...
+                SeSp-COEFF z z; CEff matrix(matrix(:,1)==CEff,2:3);...
+                CPlr matrix(matrix(:,1)==CPlr,2:3); CNlr matrix(matrix(:,1)==CNlr,2:3);];
         end
     else
         m=NaN;
